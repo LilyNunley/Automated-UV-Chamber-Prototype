@@ -1,0 +1,14 @@
+# KiCad backup and temporary files
+*.bak
+*-bak
+*~
+_autosave-*
+*.kicad_prl
+*.lck
+
+# KiCad 3D cache and local settings
+.kicad_plugins/
+_3d/
+
+# Output directories (Uncomment if you want to ignore your gerber files)
+# /gerbers/
