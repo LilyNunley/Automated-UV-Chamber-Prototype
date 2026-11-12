@@ -1,0 +1,113 @@
+#include <Esplora.h>
+
+// Musical Note Frequencies (Hz)
+#define NOTE_E4  330
+#define NOTE_GS4 415
+#define NOTE_A4  440
+#define NOTE_B4  494
+#define NOTE_CS5 554
+#define NOTE_D5  587
+#define NOTE_E5  659
+#define NOTE_FS5 740
+#define REST     0
+
+// TinkerKit OUT_A is Digital Pin 11
+const int RELAY_PIN = 11; 
+
+// Change this number if you want a different time (e.g., 7200000UL = 2 hours)
+const unsigned long RUN_TIME = 10000UL; 
+
+bool timerRunning = false;
+bool alarmPlaying = false;
+unsigned long startTime = 0;
+
+// --- Samsung Dryer End-of-Cycle Song ("Die Forelle") ---
+const int MELODY[] = {
+  // Part 1
+  NOTE_E4, NOTE_A4, NOTE_A4, NOTE_CS5, NOTE_CS5, NOTE_A4, NOTE_E4, NOTE_E4,
+  NOTE_E4, NOTE_D5, NOTE_CS5, NOTE_B4, NOTE_GS4, NOTE_A4, REST,
+  // Part 2
+  NOTE_E5, NOTE_CS5, NOTE_CS5, NOTE_E5, NOTE_CS5, NOTE_A4, NOTE_E4,
+  NOTE_E4, NOTE_FS5, NOTE_D5, NOTE_B4, NOTE_GS4, NOTE_A4, REST
+};
+
+// Note durations in milliseconds
+const int DURATIONS[] = {
+  160, 160, 160, 320, 320, 320, 320, 160,
+  160, 160, 160, 160, 160, 480, 250,
+  160, 160, 160, 160, 160, 320, 320,
+  160, 160, 160, 160, 160, 600, 1200 // 1.2-second pause before repeating
+};
+
+// Automatically calculates the number of notes in the array
+const int TOTAL_NOTES = sizeof(MELODY) / sizeof(MELODY[0]);
+
+int currentNote = 0;
+unsigned long noteStartTime = 0;
+
+void setup() {
+  pinMode(RELAY_PIN, OUTPUT);
+  
+  // ACTIVE-LOW SONGLE RELAY: Start with outlet OFF (HIGH)
+  digitalWrite(RELAY_PIN, HIGH); 
+  Esplora.writeRGB(255, 0, 0); // Red LED = Outlet OFF / Ready
+}
+
+void loop() {
+  // 1. START: Press Bottom Button (SWITCH_1)
+  if (Esplora.readButton(SWITCH_1) == LOW && !timerRunning && !alarmPlaying) {
+    timerRunning = true;
+    startTime = millis();
+    digitalWrite(RELAY_PIN, LOW);  // LOW turns Songle relay ON
+    Esplora.writeRGB(0, 255, 0);   // Green LED = Outlet ON
+    Esplora.tone(1000, 150);       // Short start beep
+    delay(250);                    // Debounce delay
+  }
+
+  // 2. RESET / STOP: Press Left Button (SWITCH_2)
+  if (Esplora.readButton(SWITCH_2) == LOW) {
+    timerRunning = false;
+    alarmPlaying = false;          // Stop the repeating song
+    Esplora.noTone();              // Silence the buzzer immediately
+    digitalWrite(RELAY_PIN, HIGH); // HIGH turns Songle relay OFF
+    Esplora.writeRGB(255, 0, 0);   // Red LED = Outlet OFF
+    Esplora.tone(400, 200);        // Low reset beep
+    delay(250);                    // Debounce delay
+  }
+
+  // 3. TIMER EXPIRED: Trigger the Samsung jingle
+  if (timerRunning && (millis() - startTime >= RUN_TIME)) {
+    timerRunning = false;
+    digitalWrite(RELAY_PIN, HIGH); // HIGH turns Songle relay OFF
+    Esplora.writeRGB(255, 0, 0);   // Red LED = Outlet OFF
+    
+    alarmPlaying = true;
+    currentNote = 0;
+    noteStartTime = millis();
+    playCurrentNote();
+  }
+
+  // 4. NON-BLOCKING SONG LOOP: Repeats until SWITCH_2 is pressed
+  if (alarmPlaying) {
+    // Wait for current note duration + a 35ms articulation gap between notes
+    if (millis() - noteStartTime >= DURATIONS[currentNote] + 35) {
+      currentNote++;
+      
+      // Restart from the beginning once the song finishes
+      if (currentNote >= TOTAL_NOTES) {
+        currentNote = 0;
+      }
+      
+      noteStartTime = millis();
+      playCurrentNote();
+    }
+  }
+}
+
+void playCurrentNote() {
+  if (MELODY[currentNote] > 0) {
+    Esplora.tone(MELODY[currentNote], DURATIONS[currentNote]);
+  } else {
+    Esplora.noTone();
+  }
+}
